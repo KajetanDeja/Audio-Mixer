@@ -38,9 +38,24 @@ def extract_audio(input_video: str, audio_wav: str) -> None:
 
 def separate_tracks(input_wav: str, out_dir: str) -> tuple[str, str]:
     logger.info(f"🎚️ Separating tracks with model '{settings.demucs_model}'")
+    try:
+        import torch
+        if settings.force_cpu:
+            device = "cpu"
+            logger.info("🧱 Forced CPU usage (ASM_FORCE_CPU=true)")
+        elif torch.cuda.is_available():
+            device = "cuda"
+            logger.info(f"🔥 CUDA available — using GPU: {torch.cuda.get_device_name(0)}")
+        else:
+            device = "cpu"
+            logger.info("🧱 CUDA not available — using CPU")
+    except ImportError:
+        device = "cpu"
+        logger.warning("⚠️ torch not installed — falling back to CPU")
+
     args = [
         "--two-stems", "vocals",
-        "-d", "cpu",
+        "-d", device,
         "-n", settings.demucs_model,
         "-o", out_dir,
         input_wav
@@ -51,7 +66,7 @@ def separate_tracks(input_wav: str, out_dir: str) -> tuple[str, str]:
     demucs_out = os.path.join(out_dir, settings.demucs_model, base)
 
     vocals = os.path.join(demucs_out, "vocals.wav")
-    candidates = ["other.wav", "accompaniment.wav"]
+    candidates = ["no_vocals.wav", "other.wav", "accompaniment.wav"]
     instr = None
     for name in candidates:
         p = os.path.join(demucs_out, name)
